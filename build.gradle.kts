@@ -1,26 +1,26 @@
 plugins {
     id("java")
     id("java-library")
-    kotlin("jvm") version("2.2.20")
+    id("maven-publish")
+    kotlin("jvm") version ("2.4.0")
 
-    id("dev.architectury.loom") version("1.11.458") apply false
-    id("architectury-plugin") version("3.4.164") apply false
+    id("dev.architectury.loom") version ("1.17-SNAPSHOT") apply false
+    id("architectury-plugin") version ("3.5-SNAPSHOT") apply false
+    id("com.gradleup.shadow") version ("9.6.1") apply false
 }
 
 allprojects {
     apply(plugin = "java")
     apply(plugin = "org.jetbrains.kotlin.jvm")
 
-    version = "${project.properties["modCobblemonVersion"]!!}-${project.properties["modMyVersion"]!!}"
-    group = project.properties["maven_group"]!!
+    version = "${project.property("modCobblemonVersion")}-${project.property("modMyVersion")}"
+    group = project.property("maven_group") as String
 
     repositories {
+        mavenLocal()
         mavenCentral()
-        maven("https://dl.cloudsmith.io/public/geckolib3/geckolib/maven/")
         maven("https://maven.impactdev.net/repository/development/")
-        maven("https://maven.neoforged.net/releases")
-        maven("https://thedarkcolour.github.io/KotlinForForge/")
-        maven("https://api.modrinth.com/maven")
+        maven("https://maven.cobbled-creators.org/releases")
     }
 
     tasks.getByName<Test>("test") {
@@ -32,3 +32,40 @@ allprojects {
     }
 }
 
+// Apply general publication configuration
+subprojects {
+    apply(plugin = "maven-publish")
+    apply(plugin = "dev.architectury.loom")
+
+    publishing {
+        publications {
+            create<MavenPublication>("mavenJava") {
+                artifact(tasks.getByName("remapJar"))
+                artifact(tasks.getByName("remapSourcesJar"))
+                groupId = "${group}.unchained"
+                artifactId = project.name
+            }
+        }
+
+        repositories {
+            maven {
+                // Set these variables in gh action secrets
+                if (System.getenv("CCM_USER") == null || System.getenv("CCM_PASS") == null) {
+                    throw RuntimeException("Did you forget your publication credentials?")
+                }
+
+                url = uri("https://maven.cobbled-creators.org/releases")
+                credentials {
+                    username = System.getenv("CCM_USER").toString()
+                    password = System.getenv("CCM_PASS").toString()
+                }
+            }
+        }
+    }
+
+    tasks {
+        withType<GenerateModuleMetadata> {
+            enabled = false
+        }
+    }
+}
